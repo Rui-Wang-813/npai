@@ -9,3 +9,5 @@ import npai.deep_learning as npdl
 import npai.neural_network as npnn
 import npai.optimization as npop
 import npai.reinforcement_learning as nprl
+
+from npai.neural_network.dataset import Dataset
