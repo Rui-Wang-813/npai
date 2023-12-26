@@ -28,10 +28,10 @@ def _get_args():
         "--save_stats", help="Save statistics to file", action="store_true")
     p.add_argument(
         "--save_pred", help="Save predictions to file", action="store_true")
-    p.add_argument("--dataset", help="Dataset file", default="data/mnist.npz")
+    p.add_argument("--dataset", help="Dataset file", default="D:/DATA/mnist/mnist.npz")
     p.add_argument(
         "--test_dataset", help="Dataset file (test set)",
-        default="data/mnist_test.npz")
+        default="D:/DATA/mnist/mnist_test.npz")
     p.add_argument(
         "--optim", help="training optimizer", default="SGD")
     p.set_defaults(save_stats=False, save_pred=False)
@@ -45,6 +45,12 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
         optim = npop.Adagrad(learning_rate=args.lr)
     if args.optim == "Adadelta":
         optim = npop.Adadelta(learning_rate=args.lr)
+    if args.optim == "AdamW":
+        optim = npop.AdamW(learning_rate=args.lr)
+    if args.optim == "Adamax":
+        optim = npop.Adamax(learning_rate=args.lr)
+    if args.optim == "ASGD":
+        optim = npop.ASGD(learning_rate=args.lr, T=len(train_dataset))
     else:
         optim = npop.SGD(learning_rate=args.lr)
 

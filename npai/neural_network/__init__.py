@@ -32,7 +32,6 @@ vectorized.
 
 from .modules import Variable, ELU, Dense, SoftmaxCrossEntropy, Flatten
 from .model import Sequential
-from npai.optimization import SGD, Adam, Adagrad, Adadelta
 from .dataset import Dataset, load_mnist
 
 __all__ = [

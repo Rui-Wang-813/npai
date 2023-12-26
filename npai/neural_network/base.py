@@ -4,19 +4,6 @@ You can use this file as a reference for the architecture of this program;
 do not modify this file.
 """
 
-
-class Variable:
-    """Container for a trainable weight variable.
-
-    This is similar to Tensorflow's tf.Variable and pytorch's (deprecated)
-    torch.autograd.Variable.
-    """
-
-    def __init__(self, value):
-        self.value = value
-        self.grad = None
-
-
 class Module:
     """Base class for NumpyNet network layers and activation functions.
 

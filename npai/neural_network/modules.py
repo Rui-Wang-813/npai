@@ -35,7 +35,8 @@ Implementation Notes
 
 import numpy as np
 
-from .base import Module, Variable
+from .base import Module
+from npai import Variable
 
 
 class Flatten(Module):

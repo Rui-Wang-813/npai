@@ -39,6 +39,9 @@ class Dataset:
             return (self.X[batch], self.y[batch])
         else:
             raise StopIteration()
+    
+    def __len__(self):
+        return self.size
 
 
 def load_mnist(filepath):
