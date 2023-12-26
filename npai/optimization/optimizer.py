@@ -14,9 +14,17 @@ class SGD(Optimizer):
         SGD learning rate.
     """
 
-    def __init__(self, learning_rate=0.01):
+    def __init__(self, learning_rate=0.01, weight_decay: float = 0., momentum: float = 0., dampening: float = 0., nesterov: bool = False):
 
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.momentum = momentum,
+        self.dampening = dampening
+        self.nesterov = nesterov
+
+    def initialize(self, params):
+        self.bs = [np.zeros_like(param.value) for param in params]
+        self.t: bool = True
 
     def apply_gradients(self, params):
         """Apply gradients to parameters.
@@ -26,8 +34,23 @@ class SGD(Optimizer):
         params : Variable[]
             List of parameters that the gradients correspond to.
         """
-        for param in params:
-            param.value -= self.learning_rate * param.grad
+        for i, param in enumerate(params):
+            grad = param.grad + self.weight_decay * param.value
+
+            if self.momentum != 0:
+                if self.t:
+                    self.bs[i] = self.momentum * self.bs[i] + (1. - self.dampening) * grad
+                else:
+                    self.bs[i] = grad
+                
+                if self.nesterov:
+                    grad += self.momentum * self.bs[i]
+                else:
+                    grad = self.bs[i]
+            
+            param.value -= self.learning_rate * grad
+        
+        self.t = True
 
 class ASGD(Optimizer):
     """Averaged SGD optimizer.
@@ -47,7 +70,7 @@ class ASGD(Optimizer):
         self.T = T
     
     def initialize(self, params):
-        self.avgs = [np.zeros_like(param) for param in params]
+        self.avgs = [np.zeros_like(param.value) for param in params]
         self.t = 0
 
     def apply_gradients(self, params):
