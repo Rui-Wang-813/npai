@@ -67,15 +67,6 @@ class ASGD(Optimizer):
                 param.value = self.avgs[i]
 
         self.t += 1
-    
-    def flush(self, params):
-        """Final update of parameters.
-
-        Parameters
-        ----------
-        params : Variable[]
-            List of parameters that the gradients correspond to.
-        """
 
 class Adam(Optimizer):
     """Adam (Adaptive Moment) optimizer.
