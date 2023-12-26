@@ -32,7 +32,6 @@ class LinearRegression(Estimator):
             w = np.zeros(D)
             for t in range(self.max_iters):
                 grad = 2 * X.T @ X @ w - 2 * y @ X
-                print(grad)
                 w -= self.lr * grad
         
         self.w = w[:-1]
