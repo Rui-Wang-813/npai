@@ -50,7 +50,7 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
     if args.optim == "Adamax":
         optim = npop.Adamax(learning_rate=args.lr)
     if args.optim == "ASGD":
-        optim = npop.ASGD(learning_rate=args.lr, T=len(train_dataset))
+        optim = npop.ASGD(learning_rate=args.lr, T=len(train_dataset) * args.epochs)
     else:
         optim = npop.SGD(learning_rate=args.lr)
 
@@ -58,9 +58,9 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
     modules=[
         npnn.Flatten(),
         npnn.Dense(dim_in=784, dim_out=256), 
-        npnn.ELU(alpha=0.9),
+        npnn.LReLU(a=0.01),
         npnn.Dense(dim_in=256, dim_out=64), 
-        npnn.ELU(alpha=0.9),
+        npnn.LReLU(a=0.01),
         npnn.Dense(dim_in=64, dim_out=10)
     ],
     loss=npnn.SoftmaxCrossEntropy(),  
@@ -95,6 +95,9 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
             "val_loss": [val_loss],
             "val_accuracy": [val_accuracy]
         })], ignore_index=True)
+    
+    val_loss, val_accuracy = model.test(val_dataset)
+    print(f"Final Validation Loss: {val_loss} | Validation Accuracy: {val_accuracy}")
 
     # Save statistics to file.
     # We recommend that you save your results to a file, then plot them

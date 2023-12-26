@@ -117,6 +117,69 @@ class ELU(Module):
         assert(np.shape(dLdx) == np.shape(self.x))
         return dLdx
 
+class LReLU(Module):
+    """Numpy implementation of the LReLU Activation (Leaky Rectified Linear Unit).
+
+    Parameters
+    ----------
+    a : float
+        Small constant that controls the coefficient for x <= 0
+    """
+
+    def __init__(self, a: float = 0.01):
+        self.a = a
+        super().__init__()
+
+    def forward(self, x, train=True):
+        """Forward propogation thorugh ELU.
+
+        Notes
+        -----
+        The LReLU activation can be described by the function
+
+            f_k(., x_k) = x * 1_(x > 0) + a * 1_(x <= 0).
+
+        Parameters
+        ----------
+        x : np.array
+            Input for this activation function, x_{k-1}.
+
+        Returns
+        -------
+        np.array
+            Output of this activation function x_k = f_k(., x_{k-1}).
+        """
+        self.x = x
+        return np.where(x > 0, x, self.a * x)
+
+    def backward(self, grad):
+        """Backward propogation for LReLU.
+
+        Parameters
+        ----------
+        grad : np.array
+            Gradient (Loss w.r.t. data) flowing backwards from the next module,
+            dL/dx_k. Should have dimensions (batch, dim).
+
+        Returns
+        -------
+        np.array
+            Gradients for the inputs to this module, dL/dx_{k-1}. Should
+            have dimensions (batch, dim).
+
+        Solution
+        --------
+        dx_k/dx_{k-1}
+            = diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+        dL/dx_k (dx_k/dx_{k-1})
+            = dL/dx_k diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+            = (1 * 1_(x > 0) + a * 1_(x <= 0) * dL/dx_k
+        """
+        dx = np.where(self.x > 0, 1, self.a)
+        dLdx = grad * dx
+        assert(np.shape(dLdx) == np.shape(self.x))
+        return dLdx
+
 
 class Dense(Module):
     """Numpy implementation of Dense Layer.

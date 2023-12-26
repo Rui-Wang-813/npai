@@ -12,6 +12,14 @@ class SGD(Optimizer):
     ----------
     learning_rate : float
         SGD learning rate.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    momentum : float
+        A small constant used to control the momentum
+    dampening : float
+        The dampening (阻尼) used against momentum to stablize training process
+    nesterov : bool
+        whether to use nesterov momentum
     """
 
     def __init__(self, learning_rate=0.01, weight_decay: float = 0., momentum: float = 0., dampening: float = 0., nesterov: bool = False):
@@ -23,6 +31,11 @@ class SGD(Optimizer):
         self.nesterov = nesterov
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.bs = [np.zeros_like(param.value) for param in params]
         self.t: bool = True
 
@@ -59,18 +72,38 @@ class ASGD(Optimizer):
     ----------
     learning_rate : float
         SGD learning rate.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    momentum : float
+        A small constant used to control the momentum
+    dampening : float
+        The dampening (阻尼) used against momentum to stablize training process
+    nesterov : bool
+        whether to use nesterov momentum
     t0: int
         the starting point to do averaging
+    T: int
+        the total number of steps
     """
 
-    def __init__(self, learning_rate=0.01, t0: int = 0, T: int = 0):
+    def __init__(self, learning_rate=0.01, weight_decay: float = 0., momentum: float = 0., dampening: float = 0., nesterov: bool = False, t0: int = 0, T: int = 0):
 
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.momentum = momentum,
+        self.dampening = dampening
+        self.nesterov = nesterov
         self.t0 = t0
         self.T = T
     
     def initialize(self, params):
-        self.avgs = [np.zeros_like(param.value) for param in params]
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
+        self.bs = [np.zeros_like(param.value) for param in params]
+        self.axs = [np.zeros_like(param.value) for param in params]
         self.t = 0
 
     def apply_gradients(self, params):
@@ -82,14 +115,41 @@ class ASGD(Optimizer):
             List of parameters that the gradients correspond to.
         """
         for i, param in enumerate(params):
-            param.value -= self.learning_rate * param.grad
+            # the part that does normal SGD
+            grad = param.grad + self.weight_decay * param.value
 
+            if self.momentum != 0:
+                if self.t:
+                    self.bs[i] = self.momentum * self.bs[i] + (1. - self.dampening) * grad
+                else:
+                    self.bs[i] = grad
+                
+                if self.nesterov:
+                    grad += self.momentum * self.bs[i]
+                else:
+                    grad = self.bs[i]
+            
+            param.value -= self.learning_rate * grad
+
+            # the part that does averaging
             if self.t >= self.t0:
-                self.avgs[i] = (self.avgs[i] * (self.t - self.t0) + param.value) / (self.t - self.t0 + 1)
+                self.axs[i] += param.value
             if self.t == self.T - 1:
-                param.value = self.avgs[i]
+                param.value = self.axs[i] / max(1, self.t - self.t0)
 
         self.t += 1
+    
+    # def get_avg(self, params):
+    #     """
+    #     Get the average model
+
+    #     Parameters
+    #     ----------
+    #     params : Variable[]
+    #         List of parameters that the gradients correspond to.
+    #     """
+    #     for i, param in enumerate(params):
+    #         param.value = self.axs[i] / max(1, self.t - self.t0)
 
 class Adam(Optimizer):
     """Adam (Adaptive Moment) optimizer.
@@ -166,6 +226,11 @@ class Adagrad(Optimizer):
         self.epsilon = epsilon
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.G = [np.zeros_like(param.value) for param in params]
 
     def apply_gradients(self, params):
@@ -239,11 +304,23 @@ class Adamax(Optimizer):
         self.weight_decay = weight_decay
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.m = [np.zeros_like(param.value) for param in params]
         self.u = [np.zeros_like(param.value) for param in params]
         self.t = 1
 
     def apply_gradients(self, params):
+        """Apply gradients to parameters.
+
+        Parameters
+        ----------
+        params : Variable[]
+            List of parameters that the gradients correspond to.
+        """
         for i, param in enumerate(params):
             grad = param.grad + self.weight_decay * param.value
             self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * grad            
