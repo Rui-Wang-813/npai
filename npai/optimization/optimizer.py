@@ -75,3 +75,34 @@ class Adam(Optimizer):
             m_hat = self.m[i] / (1 - self.beta1)
             v_hat = self.v[i] / (1 - self.beta2)
             param.value -= self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+
+class Adagrad(Optimizer):
+
+    def __init__(self, learning_rate=0.01, epsilon=1e-7):
+        self.learning_rate = learning_rate
+        self.epsilon = epsilon
+
+    def initialize(self, params):
+        self.G = [np.zeros_like(param.value) for param in params]
+
+    def apply_gradients(self, params):
+        for i, param in enumerate(params):
+            self.G[i] += param.grad**2
+            param.value -= self.learning_rate * param.grad / (np.sqrt(self.G[i]) + self.epsilon)
+
+
+class Adadelta(Optimizer):
+
+    def __init__(self, learning_rate=1.0, rho=0.95, epsilon=1e-7):
+        self.learning_rate = learning_rate
+        self.rho = rho
+        self.epsilon = epsilon
+
+    def initialize(self, params):
+        self.G = [np.zeros_like(param.value) for param in params]
+        self.delta = [np.zeros_like(param.value) for param in params]
+
+    def apply_gradients(self, params):
+        for i, param in enumerate(params):
+            self.G[i] = self.rho * self.G[i] + (1 - self.rho) * param.grad**2
+            param.value -= self.learning_rate * param.grad / (np.sqrt(self.G[i]) + self.epsilon)

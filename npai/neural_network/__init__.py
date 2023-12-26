@@ -32,12 +32,12 @@ vectorized.
 
 from .modules import Variable, ELU, Dense, SoftmaxCrossEntropy, Flatten
 from .model import Sequential
-from .optimizer import SGD, Adam
+from npai.optimization import SGD, Adam, Adagrad, Adadelta
 from .dataset import Dataset, load_mnist
 
 __all__ = [
     "Variable", "ELU", "Dense", "SoftmaxCrossEntropy", "Flatten",
     "Sequential",
-    "SGD", "Adam",
+    "SGD", "Adam", "Adagrad", "Adadelta",
     "Dataset", "load_mnist"
 ]

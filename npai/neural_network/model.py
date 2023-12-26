@@ -1,7 +1,7 @@
 """Neural Network model."""
 
 from .modules import Module
-from .optimizer import Optimizer
+from npai.optimization import Optimizer
 
 import numpy as np
 from tqdm import tqdm
