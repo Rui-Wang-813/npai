@@ -51,6 +51,58 @@ class Flatten(Module):
         """Backward propagation."""
         return grad.reshape(self.shape)
 
+class ReLU(Module):
+    """Numpy implementation of the ReLU Activation (Rectified Linear Unit)."""
+
+    def forward(self, x, train=True):
+        """Forward propogation thorugh ReLU.
+
+        Notes
+        -----
+        The ReLU activation can be described by the function
+
+            f_k(., x_k) = max(0, x).
+
+        Parameters
+        ----------
+        x : np.array
+            Input for this activation function, x_{k-1}.
+
+        Returns
+        -------
+        np.array
+            Output of this activation function x_k = f_k(., x_{k-1}).
+        """
+        self.x = x
+        return np.maximum(0, x)
+
+    def backward(self, grad):
+        """Backward propogation for ReLU.
+
+        Parameters
+        ----------
+        grad : np.array
+            Gradient (Loss w.r.t. data) flowing backwards from the next module,
+            dL/dx_k. Should have dimensions (batch, dim).
+
+        Returns
+        -------
+        np.array
+            Gradients for the inputs to this module, dL/dx_{k-1}. Should
+            have dimensions (batch, dim).
+
+        Solution
+        --------
+        dx_k/dx_{k-1}
+            = diag(1_(x > 0))
+        dL/dx_k (dx_k/dx_{k-1})
+            = dL/dx_k diag(1_(x > 0))
+            = 1_(x > 0) * dL/dx_k
+        """
+        dx = np.where(self.x > 0, 1, 0)
+        dLdx = grad * dx
+        assert(np.shape(dLdx) == np.shape(self.x))
+        return dLdx
 
 class ELU(Module):
     """Numpy implementation of the ELU Activation (Exponential Linear Unit).
