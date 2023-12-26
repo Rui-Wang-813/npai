@@ -1,3 +1,8 @@
+# make sure to be able to import parent directory
+import sys
+sys.path.append('..')
+sys.path.append('../npai')
+
 import npai.machine_learning as npml
 import npai.ensemble as npen
 import npai.deep_learning as npdl
