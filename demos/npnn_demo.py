@@ -58,9 +58,9 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
     modules=[
         npnn.Flatten(),
         npnn.Dense(dim_in=784, dim_out=256), 
-        npnn.LReLU(a=0.01),
+        npnn.PReLU(a=0.02),
         npnn.Dense(dim_in=256, dim_out=64), 
-        npnn.LReLU(a=0.01),
+        npnn.PReLU(a=0.02),
         npnn.Dense(dim_in=64, dim_out=10)
     ],
     loss=npnn.SoftmaxCrossEntropy(),  

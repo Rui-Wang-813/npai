@@ -26,7 +26,7 @@ class SGD(Optimizer):
 
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.momentum = momentum,
+        self.momentum = momentum
         self.dampening = dampening
         self.nesterov = nesterov
 
@@ -90,7 +90,7 @@ class ASGD(Optimizer):
 
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.momentum = momentum,
+        self.momentum = momentum
         self.dampening = dampening
         self.nesterov = nesterov
         self.t0 = t0

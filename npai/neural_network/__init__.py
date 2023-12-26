@@ -30,12 +30,12 @@ implementation, check to see if all forward and backward passes are fully
 vectorized.
 """
 
-from .modules import Variable, LReLU, ELU, Dense, SoftmaxCrossEntropy, Flatten
+from .modules import Variable, LReLU, RReLU, PReLU, ELU, Dense, SoftmaxCrossEntropy, Flatten
 from .model import Sequential
 from .dataset import Dataset, load_mnist
 
 __all__ = [
-    "Variable", "LReLU", "ELU", "Dense", "SoftmaxCrossEntropy", "Flatten",
+    "Variable", "LReLU", "RReLU", "PReLU", "ELU", "Dense", "SoftmaxCrossEntropy", "Flatten",
     "Sequential",
     "SGD", "Adam", "Adagrad", "Adadelta",
     "Dataset", "load_mnist"
