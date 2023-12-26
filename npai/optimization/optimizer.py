@@ -152,6 +152,15 @@ class Adam(Optimizer):
 
 class Adagrad(Optimizer):
 
+    """Adagrad optimizer.
+    
+    Parameters
+    ----------
+    learning_rate : float
+        Learning rate multiplier.
+    epsilon : float
+        A small constant added to the demoniator for numerical stability."""
+
     def __init__(self, learning_rate=0.01, epsilon=1e-7):
         self.learning_rate = learning_rate
         self.epsilon = epsilon
@@ -166,6 +175,19 @@ class Adagrad(Optimizer):
 
 
 class Adadelta(Optimizer):
+    '''
+    Adadelta optimizer
+
+    Parameters
+    ----------
+    learning_rate : float
+        Learning rate multiplier.
+    rho : float
+        Decay rate.
+    epsilon : float
+        A small constant added to the demoniator for numerical stability.
+
+    '''
 
     def __init__(self, learning_rate=1.0, rho=0.95, epsilon=1e-7):
         self.learning_rate = learning_rate
@@ -173,16 +195,41 @@ class Adadelta(Optimizer):
         self.epsilon = epsilon
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+
+        """
         self.G = [np.zeros_like(param.value) for param in params]
         self.delta = [np.zeros_like(param.value) for param in params]
 
     def apply_gradients(self, params):
+        """
+        Apply gradients to parameters.
+        """
         for i, param in enumerate(params):
             self.G[i] = self.rho * self.G[i] + (1 - self.rho) * param.grad**2
             param.value -= self.learning_rate * param.grad / (np.sqrt(self.G[i]) + self.epsilon)
 
 
 class Adamax(Optimizer):
+
+    """Adamax optimizer.
+    
+    Parameters
+    ----------
+    learning_rate : float
+        Learning rate multiplier.
+    beta1 : float
+        Momentum decay parameter.
+    beta2 : float
+        Variance decay parameter.
+    epsilon : float
+        A small constant added to the demoniator for numerical stability.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    """
 
     def __init__(self, learning_rate=1.0, beta1: float = 0.9, beta2: float = 0.999, epsilon=1e-7, weight_decay: float = 0.):
         self.learning_rate = learning_rate
