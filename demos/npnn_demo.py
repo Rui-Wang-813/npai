@@ -40,13 +40,13 @@ def _get_args():
 def run(args, train_dataset, val_dataset, graph=True, verbose=True):
     
     if args.optim == "adam" or args.optim == "Adam":
-        optim = npnn.Adam(learning_rate=args.lr)
+        optim = npop.Adam(learning_rate=args.lr)
     if args.optim == "Adagrad":
-        optim = npnn.Adagrad(learning_rate=args.lr)
+        optim = npop.Adagrad(learning_rate=args.lr)
     if args.optim == "Adadelta":
-        optim = npnn.Adadelta(learning_rate=args.lr)
+        optim = npop.Adadelta(learning_rate=args.lr)
     else:
-        optim = npnn.SGD(learning_rate=args.lr)
+        optim = npop.SGD(learning_rate=args.lr)
 
     model =  npnn.Sequential(
     modules=[
