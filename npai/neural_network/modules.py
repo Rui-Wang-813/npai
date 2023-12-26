@@ -131,7 +131,7 @@ class LReLU(Module):
         self.a = a
 
     def forward(self, x, train=True):
-        """Forward propogation thorugh ELU.
+        """Forward propogation thorugh LReLU.
 
         Notes
         -----
@@ -194,7 +194,7 @@ class RReLU(Module):
         self.max_a = a
 
     def forward(self, x, train=True):
-        """Forward propogation thorugh ELU.
+        """Forward propogation thorugh RReLU.
 
         Notes
         -----
@@ -219,7 +219,7 @@ class RReLU(Module):
         return np.where(x > 0, x, self.a * x)
 
     def backward(self, grad):
-        """Backward propogation for LReLU.
+        """Backward propogation for RReLU.
 
         Parameters
         ----------
@@ -261,7 +261,7 @@ class PReLU(Module):
         self.trainable_weights = [Variable(a)]
 
     def forward(self, x, train=True):
-        """Forward propogation thorugh ELU.
+        """Forward propogation thorugh PReLU.
 
         Notes
         -----
@@ -286,7 +286,7 @@ class PReLU(Module):
         return np.where(x > 0, x, a.value * x)
 
     def backward(self, grad):
-        """Backward propogation for LReLU.
+        """Backward propogation for PReLU.
 
         Parameters
         ----------
@@ -307,6 +307,7 @@ class PReLU(Module):
         dL/dx_k (dx_k/dx_{k-1})
             = dL/dx_k diag(1 * 1_(x > 0) + a * 1_(x <= 0))
             = (1 * 1_(x > 0) + a * 1_(x <= 0) * dL/dx_k
+        dL/da = (dL/dz * x * 1_(x < 0)).sum(axi=1).mean()
         """
         a = self.trainable_weights[0]
         B = self.x.shape[0]
