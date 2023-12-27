@@ -49,6 +49,8 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
         optim = npop.AdamW(learning_rate=args.lr)
     if args.optim == "Adamax":
         optim = npop.Adamax(learning_rate=args.lr)
+    if args.optim == "NAdam":
+        optim = npop.NAdam(learning_rate=args.lr)
     if args.optim == "ASGD":
         optim = npop.ASGD(learning_rate=args.lr, T=len(train_dataset) * args.epochs)
     else:
@@ -58,9 +60,9 @@ def run(args, train_dataset, val_dataset, graph=True, verbose=True):
     modules=[
         npnn.Flatten(),
         npnn.Dense(dim_in=784, dim_out=256), 
-        npnn.PReLU(a=0.02),
+        npnn.ELU(alpha=.9),
         npnn.Dense(dim_in=256, dim_out=64), 
-        npnn.PReLU(a=0.02),
+        npnn.ELU(alpha=.9),
         npnn.Dense(dim_in=64, dim_out=10)
     ],
     loss=npnn.SoftmaxCrossEntropy(),  
