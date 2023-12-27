@@ -2,7 +2,7 @@ import sys
 sys.path.append("..")
 sys.path.append("../npai/")
 
-from npai.machine_learning import LogisticRegression
+from npai.machine_learning import LogisticRegression, MulticlassLogisticRegression
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -22,9 +22,9 @@ labels2 = np.ones(n_samples)   # Class 1
 
 # Combine the clusters to form the dataset
 X = np.vstack((cluster1, cluster2))
-y = np.hstack((labels1, labels2))
+y = np.hstack((labels1, labels2)).astype(int)
 
-model = LogisticRegression()
+model = MulticlassLogisticRegression(norm=True)
 model.fit(X, y, verbose = False)
 
 #pred the data and cal accuracy
