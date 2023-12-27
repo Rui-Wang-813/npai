@@ -33,8 +33,16 @@ acc = np.sum(preds == y) / len(y)
 print(f"Accuracy: {acc}")
 
 # Coefficients for the decision boundary line
-coef = model.w
-intercept = model.b
+# coef = model.w
+# intercept = model.b
+
+# this is for multinomial applied to binary case
+ws = model.w
+bs = model.b
+
+coef = ws[0] - ws[1]
+intercept = bs[0] - bs[1]
+###########################################3#####
 
 # Calculate the slope and y-intercept of the decision boundary line
 slope = -coef[0] / coef[1]
