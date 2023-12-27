@@ -12,17 +12,30 @@ class SGD(Optimizer):
     ----------
     learning_rate : float
         SGD learning rate.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    momentum : float
+        A small constant used to control the momentum
+    dampening : float
+        The dampening (阻尼) used against momentum to stablize training process
+    nesterov : bool
+        whether to use nesterov momentum
     """
 
     def __init__(self, learning_rate=0.01, weight_decay: float = 0., momentum: float = 0., dampening: float = 0., nesterov: bool = False):
 
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.momentum = momentum,
+        self.momentum = momentum
         self.dampening = dampening
         self.nesterov = nesterov
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.bs = [np.zeros_like(param.value) for param in params]
         self.t: bool = True
 
@@ -59,18 +72,38 @@ class ASGD(Optimizer):
     ----------
     learning_rate : float
         SGD learning rate.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    momentum : float
+        A small constant used to control the momentum
+    dampening : float
+        The dampening (阻尼) used against momentum to stablize training process
+    nesterov : bool
+        whether to use nesterov momentum
     t0: int
         the starting point to do averaging
+    T: int
+        the total number of steps
     """
 
-    def __init__(self, learning_rate=0.01, t0: int = 0, T: int = 0):
+    def __init__(self, learning_rate=0.01, weight_decay: float = 0., momentum: float = 0., dampening: float = 0., nesterov: bool = False, t0: int = 0, T: int = 0):
 
         self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.momentum = momentum
+        self.dampening = dampening
+        self.nesterov = nesterov
         self.t0 = t0
         self.T = T
     
     def initialize(self, params):
-        self.avgs = [np.zeros_like(param.value) for param in params]
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
+        self.bs = [np.zeros_like(param.value) for param in params]
+        self.axs = [np.zeros_like(param.value) for param in params]
         self.t = 0
 
     def apply_gradients(self, params):
@@ -82,14 +115,41 @@ class ASGD(Optimizer):
             List of parameters that the gradients correspond to.
         """
         for i, param in enumerate(params):
-            param.value -= self.learning_rate * param.grad
+            # the part that does normal SGD
+            grad = param.grad + self.weight_decay * param.value
 
+            if self.momentum != 0:
+                if self.t:
+                    self.bs[i] = self.momentum * self.bs[i] + (1. - self.dampening) * grad
+                else:
+                    self.bs[i] = grad
+                
+                if self.nesterov:
+                    grad += self.momentum * self.bs[i]
+                else:
+                    grad = self.bs[i]
+            
+            param.value -= self.learning_rate * grad
+
+            # the part that does averaging
             if self.t >= self.t0:
-                self.avgs[i] = (self.avgs[i] * (self.t - self.t0) + param.value) / (self.t - self.t0 + 1)
+                self.axs[i] += param.value
             if self.t == self.T - 1:
-                param.value = self.avgs[i]
+                param.value = self.axs[i] / max(1, self.t - self.t0)
 
         self.t += 1
+    
+    # def get_avg(self, params):
+    #     """
+    #     Get the average model
+
+    #     Parameters
+    #     ----------
+    #     params : Variable[]
+    #         List of parameters that the gradients correspond to.
+    #     """
+    #     for i, param in enumerate(params):
+    #         param.value = self.axs[i] / max(1, self.t - self.t0)
 
 class Adam(Optimizer):
     """Adam (Adaptive Moment) optimizer.
@@ -166,6 +226,11 @@ class Adagrad(Optimizer):
         self.epsilon = epsilon
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.G = [np.zeros_like(param.value) for param in params]
 
     def apply_gradients(self, params):
@@ -239,11 +304,23 @@ class Adamax(Optimizer):
         self.weight_decay = weight_decay
 
     def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
         self.m = [np.zeros_like(param.value) for param in params]
         self.u = [np.zeros_like(param.value) for param in params]
         self.t = 1
 
     def apply_gradients(self, params):
+        """Apply gradients to parameters.
+
+        Parameters
+        ----------
+        params : Variable[]
+            List of parameters that the gradients correspond to.
+        """
         for i, param in enumerate(params):
             grad = param.grad + self.weight_decay * param.value
             self.m[i] = self.beta1 * self.m[i] + (1 - self.beta1) * grad            
@@ -312,3 +389,75 @@ class AdamW(Optimizer):
                 self.vmax[i] = np.where(self.vmax[i] > v_hat, self.vmax[i], v_hat)
                 v_hat = self.vmax[i]
             param.value -= self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+
+class NAdam(Optimizer):
+    """AdamW (Adaptive Moment) optimizer with fixed weight decay.
+
+    Parameters
+    ----------
+    learning_rate : float
+        Learning rate multiplier.
+    beta1 : float
+        Momentum decay parameter.
+    beta2 : float
+        Variance decay parameter.
+    epsilon : float
+        A small constant added to the demoniator for numerical stability.
+    weight_decay : float
+        A small constant used to decay the weight of parameter
+    momentum_decay : float
+        A small constant used to decay the momentum
+    decoupled_weight_decay : bool
+        Whether to use decoupled weight decay
+    """
+
+    def __init__(
+            self, learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-7, weight_decay: float = 0., momentum_decay: float = 0.004, decoupled_weight_decay: bool = False):
+
+        self.learning_rate = learning_rate
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.epsilon = epsilon
+        self.weight_decay = weight_decay
+        self.momentum_decay = momentum_decay
+        self.decoupled_weight_decay = decoupled_weight_decay
+
+    def initialize(self, params):
+        """Initialize any optimizer state needed.
+
+        params : np.array[]
+            List of parameters that will be used with this optimizer.
+        """
+        self.mus_prod = 1
+        self.t = 1
+
+        self.ms = [np.zeros_like(param.value) for param in params]
+        self.vs = [np.zeros_like(param.value) for param in params]
+
+    def apply_gradients(self, params):
+        """Apply gradients to parameters.
+
+        Parameters
+        ----------
+        params : Variable[]
+            List of parameters that the gradients correspond to.
+        """
+        mu = self.beta1 * (1 - 0.5 * 0.96 ** (self.t * self.momentum_decay))
+        mu1 = self.beta1 * (1 - 0.5 * 0.96 ** ((self.t + 1) * self.momentum_decay))
+        self.mus_prod *= mu
+        mus1_prod = self.mus_prod * mu1
+
+        for i, param in enumerate(params):
+            grad = param.grad
+            if self.decoupled_weight_decay:
+                param.value *= (1. - self.learning_rate * self.weight_decay)
+            else:
+                grad += self.weight_decay * param.value
+            
+            self.ms[i] = self.beta1 * self.ms[i] + (1 - self.beta1) * grad
+            self.vs[i] = self.beta2 * self.vs[i] + (1 - self.beta2) * np.square(grad)
+            m_hat = mu1 * self.ms[i] / (1 - mus1_prod) + (1 - mu) * grad / (1 - self.mus_prod)
+            v_hat = self.vs[i] / (1 - self.beta2 ** self.t)
+            param.value -= self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
+        
+        self.t += 1

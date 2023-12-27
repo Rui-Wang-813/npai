@@ -114,8 +114,8 @@ class ELU(Module):
     """
 
     def __init__(self, alpha=0.9):
-        self.alpha = alpha
         super().__init__()
+        self.alpha = alpha
 
     def forward(self, x, train=True):
         """Forward propogation thorugh ELU.
@@ -165,6 +165,207 @@ class ELU(Module):
         """
         clipped_x = np.clip(self.x, a_min=None, a_max=0)
         dx = np.where(self.x > 0, 1, self.alpha * np.exp(clipped_x))
+        dLdx = grad * dx
+        assert(np.shape(dLdx) == np.shape(self.x))
+        return dLdx
+
+class LReLU(Module):
+    """Numpy implementation of the LReLU Activation (Leaky Rectified Linear Unit).
+
+    Parameters
+    ----------
+    a : float
+        Small constant that controls the coefficient for x <= 0
+    """
+
+    def __init__(self, a: float = 0.01):
+        super().__init__()
+        self.a = a
+
+    def forward(self, x, train=True):
+        """Forward propogation thorugh LReLU.
+
+        Notes
+        -----
+        The LReLU activation can be described by the function
+
+            f_k(., x_k) = x * 1_(x > 0) + a * 1_(x <= 0).
+
+        Parameters
+        ----------
+        x : np.array
+            Input for this activation function, x_{k-1}.
+
+        Returns
+        -------
+        np.array
+            Output of this activation function x_k = f_k(., x_{k-1}).
+        """
+        self.x = x
+        return np.where(x > 0, x, self.a * x)
+
+    def backward(self, grad):
+        """Backward propogation for LReLU.
+
+        Parameters
+        ----------
+        grad : np.array
+            Gradient (Loss w.r.t. data) flowing backwards from the next module,
+            dL/dx_k. Should have dimensions (batch, dim).
+
+        Returns
+        -------
+        np.array
+            Gradients for the inputs to this module, dL/dx_{k-1}. Should
+            have dimensions (batch, dim).
+
+        Solution
+        --------
+        dx_k/dx_{k-1}
+            = diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+        dL/dx_k (dx_k/dx_{k-1})
+            = dL/dx_k diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+            = (1 * 1_(x > 0) + a * 1_(x <= 0) * dL/dx_k
+        """
+        dx = np.where(self.x > 0, 1, self.a)
+        dLdx = grad * dx
+        assert(np.shape(dLdx) == np.shape(self.x))
+        return dLdx
+
+class RReLU(Module):
+    """Numpy implementation of the RReLU Activation (Randomized Rectified Linear Unit).
+
+    Parameters
+    ----------
+    a : float
+        Small constant that controls the upper bound of coefficient for x <= 0
+    """
+
+    def __init__(self, a: float = 0.01):
+        super().__init__()
+        self.max_a = a
+
+    def forward(self, x, train=True):
+        """Forward propogation thorugh RReLU.
+
+        Notes
+        -----
+        The RReLU activation can be described by the function
+
+            f_k(., x_k) = x * 1_(x > 0) + a * 1_(x <= 0).
+        
+        where a is sampled uniformly from 0 to max_a
+
+        Parameters
+        ----------
+        x : np.array
+            Input for this activation function, x_{k-1}.
+
+        Returns
+        -------
+        np.array
+            Output of this activation function x_k = f_k(., x_{k-1}).
+        """
+        self.x = x
+        self.a = np.random.uniform(0, self.max_a, size=x.shape)
+        return np.where(x > 0, x, self.a * x)
+
+    def backward(self, grad):
+        """Backward propogation for RReLU.
+
+        Parameters
+        ----------
+        grad : np.array
+            Gradient (Loss w.r.t. data) flowing backwards from the next module,
+            dL/dx_k. Should have dimensions (batch, dim).
+
+        Returns
+        -------
+        np.array
+            Gradients for the inputs to this module, dL/dx_{k-1}. Should
+            have dimensions (batch, dim).
+
+        Solution
+        --------
+        dx_k/dx_{k-1}
+            = diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+        dL/dx_k (dx_k/dx_{k-1})
+            = dL/dx_k diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+            = (1 * 1_(x > 0) + a * 1_(x <= 0) * dL/dx_k
+        """
+        dx = np.where(self.x > 0, 1, self.a)
+        dLdx = grad * dx
+        assert(np.shape(dLdx) == np.shape(self.x))
+        return dLdx
+
+class PReLU(Module):
+    """Numpy implementation of the PReLU Activation (Parametric Rectified Linear Unit).
+
+    Parameters
+    ----------
+    a : float
+        Small constant that controls the upper bound of coefficient for x <= 0 at initialization
+    """
+
+    def __init__(self, a: float = 0.01):
+        super().__init__()
+        a = np.random.uniform(1e-15, a)
+        self.trainable_weights = [Variable(a)]
+
+    def forward(self, x, train=True):
+        """Forward propogation thorugh PReLU.
+
+        Notes
+        -----
+        The RReLU activation can be described by the function
+
+            f_k(., x_k) = x * 1_(x > 0) + a * 1_(x <= 0).
+        
+        where a is sampled uniformly from 0 to max_a
+
+        Parameters
+        ----------
+        x : np.array
+            Input for this activation function, x_{k-1}.
+
+        Returns
+        -------
+        np.array
+            Output of this activation function x_k = f_k(., x_{k-1}).
+        """
+        self.x = x
+        a = self.trainable_weights[0]
+        return np.where(x > 0, x, a.value * x)
+
+    def backward(self, grad):
+        """Backward propogation for PReLU.
+
+        Parameters
+        ----------
+        grad : np.array
+            Gradient (Loss w.r.t. data) flowing backwards from the next module,
+            dL/dx_k. Should have dimensions (batch, dim).
+
+        Returns
+        -------
+        np.array
+            Gradients for the inputs to this module, dL/dx_{k-1}. Should
+            have dimensions (batch, dim).
+
+        Solution
+        --------
+        dx_k/dx_{k-1}
+            = diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+        dL/dx_k (dx_k/dx_{k-1})
+            = dL/dx_k diag(1 * 1_(x > 0) + a * 1_(x <= 0))
+            = (1 * 1_(x > 0) + a * 1_(x <= 0) * dL/dx_k
+        dL/da = (dL/dz * x * 1_(x < 0)).sum(axi=1).mean()
+        """
+        a = self.trainable_weights[0]
+        B = self.x.shape[0]
+        a.grad = (np.where(self.x < 0, self.x, 0) * grad).sum() / B
+
+        dx = np.where(self.x > 0, 1, a.value)
         dLdx = grad * dx
         assert(np.shape(dLdx) == np.shape(self.x))
         return dLdx
