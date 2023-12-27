@@ -152,6 +152,7 @@ class MulticlassLogisticRegression(Estimator):
         w_t = np.zeros((y_encoded.shape[1], X.shape[1]))
         t = 0
 
+        prev_loss = float("inf")
         for t in (pbar := tqdm(range(self.maxiter))):
 
             outputs = softmax(X @ w_t.T)
@@ -160,14 +161,14 @@ class MulticlassLogisticRegression(Estimator):
             loss = -np.sum(np.log(outputs) * y_encoded)
             if self.norm:
                 # helper variable since I am not regularizing the bias term
-                _w_t = np.hstack((w_t[:, :-1], np.zeros((w_t.shape[0], 1))))
+                _w_t = w_t[:, :-1]
                 loss += self.lambda_reg * np.sum(_w_t ** 2)
             
             #update w and b
             error = outputs - y_encoded
             grad = error.T @ X / X.shape[0]
             if self.norm:
-                grad += 2 * _w_t
+                grad[:, :-1] += 2 * _w_t
 
             w_t -= self.lr * grad
 
@@ -177,7 +178,10 @@ class MulticlassLogisticRegression(Estimator):
                     tqdm.write(f"Iteration: {t}, loss: {loss}")
 
             pbar.set_description(f"Loss: {loss:.5f}")
-            if np.linalg.norm(w_t) < self.eps:
+            # if np.linalg.norm(w_t) < self.eps:
+            #     tqdm.write("Converged within eps")
+            #     break
+            if np.abs(prev_loss - loss) < self.eps:
                 tqdm.write("Converged within eps")
                 break
             

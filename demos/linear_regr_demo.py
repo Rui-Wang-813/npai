@@ -12,7 +12,7 @@ y = 0.1 * X.reshape((-1,)) + 5 + np.random.randn(100)
 # X = np.random.randn(3, 10)
 # y = X @ np.array([i for i in range(10)])
 
-model = LinearRegression(bias=True, closed=False, max_iters=2000, learning_rate=0.01)
+model = LinearRegression(bias=True, closed=False, max_iters=2000, learning_rate=0.01, regularization="ridge", reg_term=0.01)
 model.fit(X, y, verbose=True)
 
 preds = model.transform(X)

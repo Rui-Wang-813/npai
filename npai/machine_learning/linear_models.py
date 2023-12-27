@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 class LinearRegression(Estimator):
     def __init__(self, bias: bool=True, closed: bool = True, max_iters: Optional[int] = None, learning_rate: Optional[float] = None,
-                 eps: Optional[float] = 1e-15) -> None:
+                 eps: Optional[float] = 1e-15, regularization: Optional[str] = None, reg_term: Optional[float] = None) -> None:
         """
         Parameters:
 
@@ -24,6 +24,10 @@ class LinearRegression(Estimator):
             if not closed, then this is the learning rate
         eps: Optional[float]
             if not closed, then eps is the stopping criteria
+        regularization : Optional[str]
+            the regularization applied on weights, can be "ridge", "lasso" or None
+        reg_term : Optional[float]
+            the regularization term
         """
         super().__init__()
 
@@ -32,6 +36,13 @@ class LinearRegression(Estimator):
         self.max_iters = max_iters
         self.learning_rate = learning_rate
         self.eps = eps
+        self.regularization = regularization
+        self.reg_term = reg_term
+
+        if regularization not in ["lasso", "ridge", None]:
+            raise NotImplementedError("Only support LASSO or Ridge regression")
+        if self.closed and self.regularization == "lasso":
+            raise ValueError("LASSO regression does not have closed-form solution")
 
     def fit(self, X: np.ndarray, y: np.ndarray, verbose: bool = False) -> Estimator:
         """
@@ -62,12 +73,22 @@ class LinearRegression(Estimator):
         if self.closed:
             # use closed form solution
             if D > N:
-                # use X^T(XX^T)^(-1)y
-                mat = np.linalg.pinv(X @ X.T)
+                # use X^T(XX^T + lamb * I)^(-1)y
+                if self.regularization == "ridge":
+                    I = np.eye(N)
+                    I[-1, -1] = 0
+                    mat = np.linalg.pinv(X @ X.T + self.reg_term * I)
+                else:
+                    mat = np.linalg.pinv(X @ X.T)
                 w = X.T @ mat @ y
             else:
-                # use (X^TX)^(-1)X^Ty
-                mat = np.linalg.pinv(X.T @ X)
+                # use (X^TX + lamb * I)^(-1)X^Ty
+                if self.regularization == "ridge":
+                    I = np.eye(D)
+                    I[-1, -1] = 0
+                    mat = np.linalg.pinv(X.T @ X + self.reg_term * I)
+                else:
+                    mat = np.linalg.pinv(X.T @ X)
                 w = mat @ X.T @ y
         else:
             # use batch gradient descent
@@ -107,6 +128,11 @@ class LinearRegression(Estimator):
                 break
 
             grad = 2 * (X.T @ (preds - y)) / N
+            # perform regularization
+            if self.regularization == "ridge":
+                grad[:-1] += 2 * self.reg_term * w[:-1]
+            elif self.regularization == "lasso":
+                grad[:-1] += self.reg_term * np.sign(w[:-1])
             w -= self.learning_rate * grad
 
             if verbose:
