@@ -391,7 +391,7 @@ class AdamW(Optimizer):
             param.value -= self.learning_rate * m_hat / (np.sqrt(v_hat) + self.epsilon)
 
 class NAdam(Optimizer):
-    """AdamW (Adaptive Moment) optimizer with fixed weight decay.
+    """NAdam optimizer (variant of Adam that incorporates Nesterov Momentum)
 
     Parameters
     ----------
