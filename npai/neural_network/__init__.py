@@ -35,7 +35,7 @@ from .model import Sequential
 from .dataset import Dataset, load_mnist
 
 __all__ = [
-    "Variable","ReLU", "LReLU", "RReLU", "PReLU", "ELU", "Dense", "SoftmaxCrossEntropy", "Flatten",
+    "Variable", "ReLU", "LReLU", "RReLU", "PReLU", "ELU", "Dense", "SoftmaxCrossEntropy", "Flatten",
     "Sequential",
     "SGD", "Adam", "Adagrad", "Adadelta",
     "Dataset", "load_mnist"
