@@ -8,6 +8,18 @@ import npai.optimization as npop
 import warnings
 from tqdm import tqdm
 
+class _Standardizer(Estimator):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def fit(self, X: np.ndarray) -> Estimator:
+        self.mean = np.mean(X, axis=0)
+        self.std = np.std(X, axis=0)
+        return self
+    
+    def transform(self, X: ndarray) -> ndarray:
+        return (X - self.mean) / self.std
+
 class LinearRegression(Estimator):
     def __init__(self, bias: bool=True, closed: bool = True, max_iters: Optional[int] = None, learning_rate: Optional[float] = None,
                  eps: Optional[float] = None) -> None:
@@ -52,7 +64,8 @@ class LinearRegression(Estimator):
         
         if not self.closed:
             # force to normalize it for GD version
-            X = self._data_normalize(X)
+            self.standardizer = _Standardizer().fit(X)
+            X = self.standardizer.transform(X)
         
         if self.bias:
             # append bias to the weight calculation
@@ -86,7 +99,7 @@ class LinearRegression(Estimator):
         :param X: test data to predict
         """
         if not self.closed:
-            X = self._data_normalize(X, train=False)
+            X = self.standardizer.transform(X)
 
         y = X @ self.w
         if self.bias:
@@ -118,24 +131,6 @@ class LinearRegression(Estimator):
             prev_loss = float("inf")
         
         return w
-    
-    def _data_normalize(self, X: np.ndarray, train: bool = True) -> np.ndarray:
-        """
-        Perform normalization on the given data
-
-        Parameters:
-
-        X : np.ndarray
-            the data to normalize
-        train : bool
-            whether this is training time. if true, then store the mean and std of data
-        """
-        if train:
-            # only calculate and use mean and std of X if is training
-            self.data_mean = np.mean(X, axis=0)
-            self.data_std = np.std(X, axis=0)
-
-        return (X - self.data_mean) / self.data_std
     
     @property
     def coef_(self) -> np.ndarray:
@@ -195,7 +190,7 @@ class LassoRegression(Estimator):
             warnings.warn("Insufficient number of data points")
         
         # force normalization as we are using GD
-        X = self._data_normalize(X)
+        self.standardizer = _Standardizer().fit(X)
         
         if self.bias:
             # append bias to the weight calculation
@@ -237,30 +232,12 @@ class LassoRegression(Estimator):
         :param X: test data to predict
         """
         # force normalization
-        X = self._data_normalize(X, train=False)
+        X = self.standardizer.transform(X)
 
         y = X @ self.w
         if self.bias:
             y += self.b
         return y
-    
-    def _data_normalize(self, X: np.ndarray, train: bool = True) -> np.ndarray:
-        """
-        Perform normalization on the given data
-
-        Parameters:
-
-        X : np.ndarray
-            the data to normalize
-        train : bool
-            whether this is training time. if true, then store the mean and std of data
-        """
-        if train:
-            # only calculate and use mean and std of X if is training
-            self.data_mean = np.mean(X, axis=0)
-            self.data_std = np.std(X, axis=0)
-
-        return (X - self.data_mean) / self.data_std
     
     @property
     def coef_(self) -> np.ndarray:
@@ -325,7 +302,8 @@ class RidgeRegression(Estimator):
         
         if not self.closed:
             # force to normalize it for GD version
-            X = self._data_normalize(X)
+            self.standardizer = _Standardizer().fit(X)
+            X = self.standardizer.transform(X)
         
         if self.bias:
             # append bias to the weight calculation
@@ -359,7 +337,7 @@ class RidgeRegression(Estimator):
         """
         if not self.closed:
             # force normalization for GD version
-            X = self._data_normalize(X, train=False)
+            X = self.standardizer.transform(X)
 
         y = X @ self.w
         if self.bias:
@@ -390,25 +368,7 @@ class RidgeRegression(Estimator):
 
             prev_loss = loss
         
-        return w
-    
-    def _data_normalize(self, X: np.ndarray, train: bool = True) -> np.ndarray:
-        """
-        Perform normalization on the given data
-
-        Parameters:
-
-        X : np.ndarray
-            the data to normalize
-        train : bool
-            whether this is training time. if true, then store the mean and std of data
-        """
-        if train:
-            # only calculate and use mean and std of X if is training
-            self.data_mean = np.mean(X, axis=0)
-            self.data_std = np.std(X, axis=0)
-
-        return (X - self.data_mean) / self.data_std
+        return w    
     
     @property
     def coef_(self) -> np.ndarray:
@@ -425,3 +385,57 @@ class RidgeRegression(Estimator):
         weights = np.abs(self.w)
         importances = weights / np.sum(weights)
         return importances
+    
+"""
+Below are implementations of Support Vector Machine (SVM).
+Reference: https://www.kaggle.com/code/prabhat12/svm-from-scratch
+"""
+
+class SVM(Estimator):
+    def __init__(self, learning_rate: float = .01, reg_term: float = 0., max_iters: int = 1000) -> None:
+        super().__init__()
+        self.learning_rate = learning_rate
+        self.reg_term = reg_term
+        self.max_iters = max_iters
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> Estimator:
+        N, D = X.shape
+
+        # force standardization
+        # self.standardizer = _Standardizer().fit(X)
+        # X = self.standardizer.transform(X)
+
+        # unsqueeze y
+        y = y.reshape((-1,))
+
+        # add bias
+        X = np.hstack((X, np.zeros((N, 1))))
+        D += 1
+
+        # initialize
+        w = np.zeros(D)
+
+        # perform gradient descent
+        for t in range(self.max_iters):
+            # for i, xi in enumerate(X):
+            #     # calculate the gradient
+            #     grad = self.reg_term * w
+            #     if y[i] * (w @ xi) < 0:
+            #         grad += -y[i] * xi
+            
+            grad1 = self.reg_term * w
+            w[:-1] -= grad1[:-1]    # do not regularize the bias
+
+            mask = (y * (X @ w)) < 1
+            if not np.any(mask):
+                break
+            w +=  (y * X.T).T[mask].mean(axis=0)
+                
+        self.w = w[:-1]
+        self.b = w[-1]
+
+        return self
+    
+    def transform(self, X: ndarray) -> ndarray:
+        y = (X @ self.w + self.b)
+        return np.where(y > 0, 1, -1)
