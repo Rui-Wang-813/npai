@@ -471,7 +471,7 @@ class Dense(Module):
         assert(np.shape(W.value) == np.shape(W.grad))
         assert(np.shape(b.value) == np.shape(b.grad))
         return dx
-
+    
 
 class SoftmaxCrossEntropy(Module):
     """Softmax Cross Entropy fused output activation."""
