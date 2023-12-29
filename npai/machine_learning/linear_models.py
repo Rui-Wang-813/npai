@@ -391,14 +391,31 @@ Below are implementations of Support Vector Machine (SVM).
 Reference: https://www.kaggle.com/code/prabhat12/svm-from-scratch
 """
 
-class SVM(Estimator):
-    def __init__(self, learning_rate: float = .01, reg_term: float = 0., max_iters: int = 1000) -> None:
+class SoftSVM(Estimator):
+    """
+    Soft SVM problem formulated as:
+    min lambda_ * |w|^2 + sum_i max(0, 1 - yi(Xi @ w + b))
+    Calculate its gradient w.r.t w and perform gradient descent
+
+    Parameters:
+
+    learning_rate : float
+        learning rate during gradient descent
+    reg_term : float
+        regularization term
+    max_iters : int
+        maximum number of iterations
+    eps : float
+        epsilon, the threshold for convergence
+    """
+    def __init__(self, learning_rate: float = .01, reg_term: float = .01, max_iters: int = 1000, eps: float = 0.) -> None:
         super().__init__()
         self.learning_rate = learning_rate
         self.reg_term = reg_term
         self.max_iters = max_iters
+        self.eps = eps
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> Estimator:
+    def fit(self, X: np.ndarray, y: np.ndarray, verbose: bool = False) -> Estimator:
         N, D = X.shape
 
         # force standardization
@@ -406,30 +423,48 @@ class SVM(Estimator):
         # X = self.standardizer.transform(X)
 
         # unsqueeze y
-        y = y.reshape((-1,))
+        y = y.reshape((-1,1))
 
         # add bias
-        X = np.hstack((X, np.zeros((N, 1))))
+        X = np.hstack((X, np.ones((N, 1))))
         D += 1
 
         # initialize
         w = np.zeros(D)
 
+        prev_w = np.copy(w)
+
         # perform gradient descent
-        for t in range(self.max_iters):
+        for t in (pbar := tqdm(range(self.max_iters))):
             # for i, xi in enumerate(X):
             #     # calculate the gradient
             #     grad = self.reg_term * w
             #     if y[i] * (w @ xi) < 0:
             #         grad += -y[i] * xi
             
-            grad1 = self.reg_term * w
-            w[:-1] -= grad1[:-1]    # do not regularize the bias
+            # pre calculations
+            mat = y * X
+            vec = mat @ w
 
-            mask = (y * (X @ w)) < 1
+            # calculate the mask
+            mask = vec < 1
             if not np.any(mask):
+                tqdm.write("converged within threshold, early stopping...")
                 break
-            w +=  (y * X.T).T[mask].mean(axis=0)
+
+            w[:-1] -= self.learning_rate * self.reg_term * w[:-1]    # do not regularize the bias
+            w += self.learning_rate * mat[mask].mean(axis=0)
+
+            # calculate loss, early stopping?
+            loss = self._loss_fn(vec, w)
+            if np.linalg.norm(prev_w - w, ord=2) < self.eps:
+                tqdm.write("converged within threshold, early stopping...")
+                break
+            prev_w = np.copy(w)
+
+            if verbose and t % 100 == 0:
+                tqdm.write(f"Iteration {t} | Loss {loss:.5f}")
+            pbar.set_description(f"Loss: {loss:.5f}")
                 
         self.w = w[:-1]
         self.b = w[-1]
@@ -439,3 +474,178 @@ class SVM(Estimator):
     def transform(self, X: ndarray) -> ndarray:
         y = (X @ self.w + self.b)
         return np.where(y > 0, 1, -1)
+    
+    def _loss_fn(self, vec: np.ndarray, w: np.ndarray) -> float:
+        return np.where(1 - vec > 0, 0, 1 - vec).mean() + self.reg_term * np.sum(np.square(w))
+
+class HardSVM(Estimator):
+    """
+    Hard SVM problem formulated as:
+    min sum_i max(0, 1 - yi(Xi @ w + b))
+    Calculate its gradient w.r.t w and perform gradient descent
+
+    This is a special case of Soft SVM, but optimized in implmenetation
+
+    Parameters:
+
+    learning_rate : float
+        learning rate during gradient descent
+    reg_term : float
+        regularization term
+    max_iters : int
+        maximum number of iterations
+    eps : float
+        epsilon, the threshold for convergence
+    """
+    def __init__(self, learning_rate: float = .01, reg_term: float = 0., max_iters: int = 1000, eps: float = 0.) -> None:
+        super().__init__()
+        self.learning_rate = learning_rate
+        self.reg_term = reg_term
+        self.max_iters = max_iters
+        self.eps = eps
+
+    def fit(self, X: np.ndarray, y: np.ndarray, verbose: bool = False) -> Estimator:
+        N, D = X.shape
+
+        # force standardization
+        # self.standardizer = _Standardizer().fit(X)
+        # X = self.standardizer.transform(X)
+
+        # unsqueeze y
+        y = y.reshape((-1,1))
+
+        # add bias
+        X = np.hstack((X, np.ones((N, 1))))
+        D += 1
+
+        # initialize
+        w = np.zeros(D)
+
+        prev_w = np.copy(w)
+
+        # perform gradient descent
+        for t in (pbar := tqdm(range(self.max_iters))):
+            # for i, xi in enumerate(X):
+            #     # calculate the gradient
+            #     grad = self.reg_term * w
+            #     if y[i] * (w @ xi) < 0:
+            #         grad += -y[i] * xi
+            
+            # pre calculations
+            mat = y * X
+            vec = mat @ w
+
+            # calculate the mask
+            mask = vec < 1
+            if not np.any(mask):
+                tqdm.write("converged within threshold, early stopping...")
+                break
+            w += self.learning_rate * mat[mask].mean(axis=0)
+
+            # calculate loss, early stopping?
+            loss = self._loss_fn(vec)
+            if np.linalg.norm(prev_w - w, ord=2) < self.eps:
+                tqdm.write("converged within threshold, early stopping...")
+                break
+            prev_w = np.copy(w)
+
+            if verbose and t % 100 == 0:
+                tqdm.write(f"Iteration {t} | Loss {loss:.5f}")
+            pbar.set_description(f"Loss: {loss:.5f}")
+                
+        self.w = w[:-1]
+        self.b = w[-1]
+
+        return self
+    
+    def transform(self, X: ndarray) -> ndarray:
+        y = (X @ self.w + self.b)
+        return np.where(y > 0, 1, -1)
+    
+    def _loss_fn(self, vec: np.ndarray) -> float:
+        return np.where(1 - vec > 0, 0, 1 - vec).mean()
+
+class PEGASOS(Estimator):
+    """
+    Soft SVM problem formulated as:
+    min lambda_ * |w|^2 + sum_i max(0, 1 - yi(Xi @ w + b))
+    Calculate its gradient w.r.t w and perform gradient descent using PEGASOS algorithm
+
+    This is a special case of Soft SVM, but optimized in implmenetation
+
+    Parameters:
+
+    reg_term : float
+        regularization term
+    max_iters : int
+        maximum number of iterations
+    eps : float
+        epsilon, the threshold for convergence
+    """
+    def __init__(self, reg_term: float = .01, max_iters: int = 1000, eps: float = 0.) -> None:
+        super().__init__()
+        self.reg_term = reg_term
+        self.max_iters = max_iters
+        self.eps = eps
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> Estimator:
+        N, D = X.shape
+
+        # force standardization
+        # self.standardizer = _Standardizer().fit(X)
+        # X = self.standardizer.transform(X)
+
+        # unsqueeze y
+        y = y.reshape((-1,1))
+
+        # add bias
+        X = np.hstack((X, np.ones((N, 1))))
+        D += 1
+
+        # initialize
+        w = np.zeros(D)
+
+        prev_w = np.copy(w)
+
+        # pre calculation
+        a = 1. / np.sqrt(self.reg_term)
+
+        # perform gradient descent
+        for t in (pbar := tqdm(range(self.max_iters))):
+            # for i, xi in enumerate(X):
+            #     # calculate the gradient
+            #     grad = self.reg_term * w
+            #     if y[i] * (w @ xi) < 0:
+            #         grad += -y[i] * xi
+            
+            eta_t = 1 / self.reg_term / (t + 1)
+
+            # randomly choose a sample
+            idx = np.random.choice(range(N))
+            Xi = X[idx]
+            yi = y[idx]
+
+            # update w
+            w[:-1] -= eta_t * self.reg_term * w[:-1]
+            if yi * (Xi @ w) < 1:
+                # incorrect
+                w += eta_t * yi * Xi
+            # projection step
+            w *= min(1, a / np.linalg.norm(w, ord=2))
+            
+            if np.linalg.norm(prev_w - w, ord=2) < self.eps:
+                tqdm.write("converged within threshold, early stopping...")
+                break
+            prev_w = np.copy(w)
+                
+        self.w = w[:-1]
+        self.b = w[-1]
+
+        return self
+    
+    def transform(self, X: ndarray) -> ndarray:
+        y = (X @ self.w + self.b)
+        return np.where(y > 0, 1, -1)
+    
+    def _loss_fn(self, vec: np.ndarray, w: np.ndarray) -> float:
+        return np.where(1 - vec > 0, 0, 1 - vec).mean()

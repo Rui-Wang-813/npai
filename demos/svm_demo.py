@@ -16,7 +16,7 @@ plt.show()
 
 import npai.machine_learning as npml
 
-svm = npml.SVM()
+svm = npml.PEGASOS(max_iters=5000, eps=1e-15)
 svm.fit(X1, y1)
 preds = svm.transform(X1)
 acc = (preds == y1).mean()
