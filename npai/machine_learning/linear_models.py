@@ -660,7 +660,7 @@ class Kernel(object):
 
 class RBFKernel(Kernel):
 
-    def __init__(self, gamma: float) -> None:
+    def __init__(self, gamma: float = .1) -> None:
         super().__init__()
         self.gamma = gamma
     
@@ -671,7 +671,7 @@ class RBFKernel(Kernel):
         return np.exp(-self.gamma * np.linalg.norm(X - Z, ord=2, axis=2) ** 2)
 
 class PolyKernel(Kernel):
-    def __init__(self, degree: int) -> None:
+    def __init__(self, degree: int = 1) -> None:
         super().__init__()
         self.degree = degree
     
@@ -757,9 +757,6 @@ class DualSVM(Estimator):
     def transform(self, X: ndarray) -> ndarray:
         y = (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
         return np.sign(y)    
-    
-    def H(self, X: np.ndarray) -> np.ndarray:
-        return (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
 
     def _BGA(self, verbose: bool = False) -> np.ndarray:
         # pre calculate yi * yj * K(xi, xj)
