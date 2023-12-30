@@ -16,20 +16,20 @@ plt.show()
 
 import npai.machine_learning as npml
 
-svm = npml.PEGASOS(max_iters=5000, eps=1e-15)
+svm = npml.DualSVM(max_iters=1000, eps=1e-15, learning_rate=.001, C=1.)
 svm.fit(X1, y1)
 preds = svm.transform(X1)
 acc = (preds == y1).mean()
 print(f"prediction accuracy is: {acc:.5f}")
 
-w = svm.w
-b = svm.b
-
-slope = -w[0] / w[1]
-y_intercept = -b / w[1]
-
-x_space = np.linspace(np.min(X1[:, 0]), np.max(X1[:, 0]), num=1000)
-ys = slope * x_space + y_intercept
-plt.plot(x_space, ys)
 plt.scatter(X1[:, 0], X1[:, 1], c=y1, s=50, cmap='winter', alpha=.5)
+ax = plt.gca()
+xlim = ax.get_xlim()
+ylim = ax.get_ylim()
+xx = np.linspace(xlim[0], xlim[1], 50)
+yy = np.linspace(ylim[0], ylim[1], 50)
+YY, XX = np.meshgrid(yy, xx)
+xy = np.vstack([XX.ravel(), YY.ravel()]).T
+Z = svm.H(xy).reshape(XX.shape)
+ax.contour(XX, YY, Z, levels=[-1, 0, 1],linestyles=['--', '-', '--'])
 plt.show()

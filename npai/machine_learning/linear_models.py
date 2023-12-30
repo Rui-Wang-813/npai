@@ -1,7 +1,7 @@
 from .base import *
 from numpy import ndarray
 import numpy as np
-from typing import Optional
+from typing import Any, Optional
 
 import npai.optimization as npop
 
@@ -473,7 +473,7 @@ class SoftSVM(Estimator):
     
     def transform(self, X: ndarray) -> ndarray:
         y = (X @ self.w + self.b)
-        return np.where(y > 0, 1, -1)
+        return np.sign(y)
     
     def _loss_fn(self, vec: np.ndarray, w: np.ndarray) -> float:
         return np.where(1 - vec > 0, 0, 1 - vec).mean() + self.reg_term * np.sum(np.square(w))
@@ -560,7 +560,7 @@ class HardSVM(Estimator):
     
     def transform(self, X: ndarray) -> ndarray:
         y = (X @ self.w + self.b)
-        return np.where(y > 0, 1, -1)
+        return np.sign(y)
     
     def _loss_fn(self, vec: np.ndarray) -> float:
         return np.where(1 - vec > 0, 0, 1 - vec).mean()
@@ -645,7 +645,146 @@ class PEGASOS(Estimator):
     
     def transform(self, X: ndarray) -> ndarray:
         y = (X @ self.w + self.b)
-        return np.where(y > 0, 1, -1)
+        return np.sign(y)
     
     def _loss_fn(self, vec: np.ndarray, w: np.ndarray) -> float:
         return np.where(1 - vec > 0, 0, 1 - vec).mean()
+
+class Kernel(object):
+
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, X: np.ndarray, Z: np.ndarray) -> np.ndarray:
+        pass
+
+class RBFKernel(Kernel):
+
+    def __init__(self, gamma: float) -> None:
+        super().__init__()
+        self.gamma = gamma
+    
+    def __call__(self, X: ndarray, Z: ndarray) -> np.ndarray:
+        # make sure (X - Z)_{i, j} = Xi - Zj
+        X = X[:, np.newaxis]
+        Z = Z[np.newaxis, :]
+        return np.exp(-self.gamma * np.linalg.norm(X - Z, ord=2, axis=2) ** 2)
+
+class PolyKernel(Kernel):
+    def __init__(self, degree: int) -> None:
+        super().__init__()
+        self.degree = degree
+    
+    def __call__(self, X: ndarray, Z: ndarray) -> np.ndarray:
+        return np.power(1 + X @ Z.T, self.degree)
+    
+def _is_Q_PD(Q: np.ndarray) -> bool:
+    """
+    Check if a matrix Q is positive definite?
+    """
+    if not np.all(Q == Q.T):
+            return False        
+    eigv, _ = np.linalg.eig(Q)
+    if not np.all(eigv > 0):
+        return False
+    return True
+
+class DotProdKernel(Kernel):
+    def __init__(self, Q: Optional[np.ndarray] = None) -> None:
+        super().__init__()
+        self.Q = Q
+        if Q is not None and not _is_Q_PD(Q):
+            raise ValueError("Given matrix must be positive definite!")
+    
+    def __call__(self, X: ndarray, Z: ndarray) -> ndarray:
+        if self.Q is None:
+            # no Q given, just use identity
+            self.Q = np.eye(X.shape[1])
+
+        return X @ self.Q @ Z.T
+
+class DualSVM(Estimator):
+    """
+    Soft SVM problem solved using Duality
+    max sum_n alpha_n  - 0.5 * sum_{m,n} ym * yn * alpha_m * alpha_n * xm @ xn
+    Calculate its gradient w.r.t alpha and perform gradient descent
+
+    This is a special case of Soft SVM, but optimized in implmenetation
+
+    Parameters:
+
+    C : float
+        the term used to control slackness of soft SVM
+    max_iters : int
+        maximum number of iterations
+    eps : float
+        epsilon, the threshold for convergence
+    """
+    def __init__(self, learning_rate: float = .001, C: float = 1., max_iters: int = 1000, eps: float = 0., opt: str = "BGD", kernel: Kernel = DotProdKernel()) -> None:
+        if opt not in ["BGD", "SMO"]:
+            raise NotImplementedError("Only support Gradient Descent or SMO optimization")
+        
+        super().__init__()
+        self.learning_rate = learning_rate
+        self.C = C
+        self.max_iters = max_iters
+        self.eps = eps
+        self.opt = opt
+        self.kernel = kernel
+
+    def fit(self, X: np.ndarray, y: np.ndarray, verbose: bool = False) -> Estimator:
+        N, D = X.shape
+
+        # force standardization
+        # self.standardizer = _Standardizer().fit(X)
+        # X = self.standardizer.transform(X)
+        self.X = X
+        self.y = y
+
+        if self.opt == "BGD":
+            self.alpha = self._BGA(verbose)
+        else:
+            self.alpha = self._SMO(verbose)
+
+        # recover b
+        mask = (self.alpha > 0) & (self.alpha < self.C)
+        yn = y[mask]
+        Xn = X[mask]
+        self.b = (yn - (self.alpha * y) @ self.kernel(X, Xn)).mean()
+
+        return self
+    
+    def transform(self, X: ndarray) -> ndarray:
+        y = (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
+        return np.sign(y)    
+    
+    def H(self, X: np.ndarray) -> np.ndarray:
+        return (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
+
+    def _BGA(self, verbose: bool = False) -> np.ndarray:
+        # pre calculate yi * yj * K(xi, xj)
+        kernel_mat = np.outer(self.y, self.y) * self.kernel(self.X, self.X)
+
+        alpha = np.zeros(self.X.shape[0])
+        prev_alpha = np.copy(alpha)
+        for t in (pbar := tqdm(range(self.max_iters))):
+            grad = 1 - (kernel_mat @ alpha)
+            alpha += self.learning_rate * grad  # gradient ascent as we are maximizing
+            alpha = np.clip(alpha, 0, self.C)   # KKT: 0 <= alpha <= C
+            # alpha -= np.mean(alpha * self.y)    # KKT: sum_n alpha_n * yn = 0
+
+            if np.linalg.norm(prev_alpha - alpha, ord=2) < self.eps:
+                tqdm.write("converged within threshold, early stopping...")
+                break
+            prev_alpha = np.copy(alpha)
+
+            # calculate loss
+            gain = np.sum(alpha) - 0.5 * np.sum(np.outer(alpha, alpha) * kernel_mat)
+            if verbose and t % 100 == 0:
+                tqdm.write(f"Iteration {t} | Gain {gain:.5f}")
+            pbar.set_description(f"Gain: {gain:.5f}")
+        
+        return alpha
+    
+    def _SMO(self, verbose: bool = False) -> np.ndarray:
+        pass
