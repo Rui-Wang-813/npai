@@ -33,3 +33,7 @@ class PCA(Estimator):
 
         return self
     
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        X_pca = X @ self.components
+        return X_pca
+    
