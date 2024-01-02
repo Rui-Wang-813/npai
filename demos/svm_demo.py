@@ -30,7 +30,7 @@ plt.show()
 
 import npai.machine_learning as npml
 
-svm = npml.DualSVM(max_iters=1000, eps=1e-15, learning_rate=.001, C=1., opt="SMO", kernel=npml.DotProdKernel())
+svm = npml.DualSVM(max_iters=1000, eps=1e-15, learning_rate=.001, C=1., opt="SMO", kernel=npml.RBFKernel())
 svm.fit(X1, y1)
 preds = svm.transform(X1)
 acc = (preds == y1).mean()

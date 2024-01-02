@@ -788,10 +788,14 @@ class DualSVM(Estimator):
         self.b = (yn - (self.alpha *self.y) @ self.kernel(self.X, Xn)).mean()
     
     def _SMO(self, verbose: bool = False) -> None:
+        """
+        Simplified SMO for SVM
+        Reference: https://cs229.stanford.edu/materials/smo.pdf
+        """
         self.alpha = np.zeros(self.X.shape[0])
         self.b = 0
 
-        XX = self.X @ self.X.T
+        XX = self.kernel(self.X, self.X)
 
         t = 0
         while t < self.max_iters:
