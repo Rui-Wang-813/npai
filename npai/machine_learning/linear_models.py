@@ -713,12 +713,16 @@ class DualSVM(Estimator):
 
     Parameters:
 
+    learning_rate : float
+        learning rate
     C : float
         the term used to control slackness of soft SVM
     max_iters : int
         maximum number of iterations
     eps : float
         epsilon, the threshold for convergence
+    kernel : Kernel
+        the kernel function
     """
     def __init__(self, learning_rate: float = .001, C: float = 1., max_iters: int = 1000, eps: float = 0., opt: str = "BGD", kernel: Kernel = DotProdKernel()) -> None:
         if opt not in ["BGD", "SMO"]:
@@ -742,46 +746,108 @@ class DualSVM(Estimator):
         self.y = y
 
         if self.opt == "BGD":
-            self.alpha = self._BGA(verbose)
+            self._BGA(verbose)
         else:
-            self.alpha = self._SMO(verbose)
-
-        # recover b
-        mask = (self.alpha > 0) & (self.alpha < self.C)
-        yn = y[mask]
-        Xn = X[mask]
-        self.b = (yn - (self.alpha * y) @ self.kernel(X, Xn)).mean()
+            self._SMO(verbose)
 
         return self
     
-    def transform(self, X: ndarray) -> ndarray:
-        y = (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
-        return np.sign(y)    
+    def _H(self, X: np.ndarray) -> np.ndarray:
+        return (self.alpha * self.y) @ self.kernel(self.X, X) + self.b
+
+    def transform(self, X: np.ndarray) -> None:
+        return np.sign(self._H(X))    
 
     def _BGA(self, verbose: bool = False) -> np.ndarray:
         # pre calculate yi * yj * K(xi, xj)
         kernel_mat = np.outer(self.y, self.y) * self.kernel(self.X, self.X)
 
-        alpha = np.zeros(self.X.shape[0])
-        prev_alpha = np.copy(alpha)
+        self.alpha = np.zeros(self.X.shape[0])
+        prev_alpha = np.copy(self.alpha)
         for t in (pbar := tqdm(range(self.max_iters))):
-            grad = 1 - (kernel_mat @ alpha)
-            alpha += self.learning_rate * grad  # gradient ascent as we are maximizing
-            alpha = np.clip(alpha, 0, self.C)   # KKT: 0 <= alpha <= C
+            grad = 1 - (kernel_mat @ self.alpha)
+            self.alpha += self.learning_rate * grad         # gradient ascent as we are maximizing
+            self.alpha = np.clip(self.alpha, 0, self.C)     # KKT: 0 <= alpha <= C
             # alpha -= np.mean(alpha * self.y)    # KKT: sum_n alpha_n * yn = 0
 
-            if np.linalg.norm(prev_alpha - alpha, ord=2) < self.eps:
+            if np.linalg.norm(prev_alpha - self.alpha, ord=2) < self.eps:
                 tqdm.write("converged within threshold, early stopping...")
                 break
-            prev_alpha = np.copy(alpha)
+            prev_alpha = np.copy(self.alpha)
 
             # calculate loss
-            gain = np.sum(alpha) - 0.5 * np.sum(np.outer(alpha, alpha) * kernel_mat)
+            gain = np.sum(self.alpha) - 0.5 * np.sum(np.outer(self.alpha, self.alpha) * kernel_mat)
             if verbose and t % 100 == 0:
                 tqdm.write(f"Iteration {t} | Gain {gain:.5f}")
             pbar.set_description(f"Gain: {gain:.5f}")
         
-        return alpha
+        # recover b
+        mask = (self.alpha > 0) & (self.alpha < self.C)
+        yn = self.y[mask]
+        Xn = self.X[mask]
+        self.b = (yn - (self.alpha *self.y) @ self.kernel(self.X, Xn)).mean()
     
-    def _SMO(self, verbose: bool = False) -> np.ndarray:
-        pass
+    def _SMO(self, verbose: bool = False) -> None:
+        self.alpha = np.zeros(self.X.shape[0])
+        self.b = 0
+
+        XX = self.X @ self.X.T
+
+        t = 0
+        while t < self.max_iters:
+            num_changed_alphas = 0
+            for i in range(self.X.shape[0]):
+                # calculate difference between prediction and true label
+                Ei = self._H(self.X[i]) - self.y[i]
+                if (self.y[i] * Ei < -self.eps and self.alpha[i] < self.C) or \
+                    (self.y[i] * Ei > self.eps and self.alpha[i] > 0):
+                    # randomly choose j != i
+                    j = np.random.choice(range(self.X.shape[0] - 1))
+                    if j >= i: j += 1
+
+                    # calculate Ej
+                    Ej = self._H(self.X[j]) - self.y[j]
+
+                    # save old alpha's
+                    alphas_old = (self.alpha[i], self.alpha[j])
+
+                    # compute lower bound
+                    if self.y[i] != self.y[j]:
+                        L = max(0, self.alpha[j] - self.alpha[i])
+                        H = min(self.C, self.C + self.alpha[j] - self.alpha[i])
+                    else:
+                        L = max(0, self.alpha[i] + self.alpha[j] - self.C)
+                        H = min(self.C, self.alpha[i] + self.alpha[j])
+                    
+                    if L == H:
+                        continue
+
+                    # compute eta
+                    eta = 2 * XX[i,j] - XX[i,i] - XX[j,j]
+
+                    # update alpha_j
+                    self.alpha[j] -= self.y[j] * (Ei - Ej) / eta
+                    self.alpha[j] = np.clip(self.alpha[j], L, H)
+                    if np.abs(self.alpha[j] - alphas_old[1]) < 1e-5:
+                        continue
+
+                    # update alpha_i
+                    self.alpha[i] += self.y[i] * self.y[j] * (alphas_old[1] - self.alpha[j])
+
+                    # calculate b1 and b2
+                    b1 = self.b - Ei - self.y[i] * (self.alpha[i] - alphas_old[0]) * XX[i,i] - self.y[j] * (self.alpha[j] - alphas_old[1]) * XX[i,j]
+                    b2 = self.b - Ej - self.y[i] * (self.alpha[i] - alphas_old[0]) * XX[i,j] - self.y[j] * (self.alpha[j] - alphas_old[1]) * XX[j,j]
+                    if self.alpha[i] >= 0 and self.alpha[i] <= self.C:
+                        self.b = b1
+                    elif self.alpha[j] >= 0 and self.alpha[j] <= self.C:
+                        self.b = b2
+                    else:
+                        self.b = (b1 + b2) / 2.
+
+                    # update num changed alphas
+                    num_changed_alphas += 1
+                
+            if num_changed_alphas:
+                t = 0
+            else:
+                t += 1
