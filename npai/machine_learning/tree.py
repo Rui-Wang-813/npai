@@ -41,27 +41,32 @@ class _DecisionNode(Estimator):
             self.split_measure = _poisson_deviance
 
         self.split_rule = split_rule
+        self.is_leaf = False
+
+    def _get_pred(self, y: np.ndarray) -> None:
+        self.is_leaf = True
+        if self.is_clf:
+            # perform classification
+            ys, cnts = np.unique(y, return_counts=True)
+            self.pred = ys[np.argmax(cnts)]
+        else:
+            # perform regression
+            self.pred = np.mean(y)
     
     def fit(self, X: np.ndarray, y: np.ndarray) -> Estimator:
-        if self.max_depth == 0 or np.unique(y).shape[0] == 1:
+        if self.max_depth == 0 or np.unique(y).shape[0] <= 1:
             # leaf node
-            self.is_leaf = True
-            if self.is_clf:
-                # perform classification
-                ys, cnts = np.unique(y, return_counts=True)
-                self.pred = ys[np.argmax(cnts)]
-            else:
-                # perform regression
-                self.pred = np.mean(y)
+            self._get_pred(y)
             return self
-        self.is_leaf = False
 
         axs = np.arange(X.shape[1])
         measure_val = self.split_measure(y)
 
+        # find the best feature, threshold according to gains
         best_stats = (-1, np.nan, float("-inf"))    # axis, threshold, gain
         for ax in axs:
             ax_vals = X[:, ax]
+            # construct q + 1 thresholds
             thresholds = np.sort(np.unique(ax_vals))
             thresholds = np.append(thresholds, thresholds[-1] + 1)
             thresholds = np.append(thresholds[0] - 1, thresholds)
@@ -73,6 +78,7 @@ class _DecisionNode(Estimator):
                 ltys = y[mask]
                 rtys = y[~mask]
 
+                # calculate gains
                 measure1 = self.split_measure(ltys)
                 measure2 = self.split_measure(rtys)
                 gain = measure_val - (ltys.shape[0] * measure1 + rtys.shape[0] * measure2) / y.shape[0]
@@ -81,6 +87,10 @@ class _DecisionNode(Estimator):
         
         self.ax, self.threshold, _ = best_stats
         mask = X[:, self.ax] < self.threshold
+        if np.all(mask) or not np.any(mask):
+            # meaningless split
+            self._get_pred(y)
+            return self
 
         self.left = _DecisionNode(self.max_depth - 1, self.split_rule).fit(X[mask], y[mask])
         self.right = _DecisionNode(self.max_depth - 1, self.split_rule).fit(X[~mask], y[~mask])
@@ -107,6 +117,23 @@ class DecisionTreeClassifier(Estimator):
         super().__init__()
         self.max_depth = max_depth
         if split_rule not in ["gini", "entropy"]:
+            raise NotImplementedError("Only support gini impurity or entropy")
+        self.split_rule = split_rule
+    
+    def fit(self, X: np.ndarray, y: np.ndarray) -> Estimator:
+        self.root = _DecisionNode(self.max_depth, self.split_rule, True)
+        self.root.fit(X, y)
+        return self
+    
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        return self.root.transform(X)
+    
+class DecisionTreeRegressor(Estimator):
+
+    def __init__(self, max_depth: int = 1, split_rule: str = "mse") -> None:
+        super().__init__()
+        self.max_depth = max_depth
+        if split_rule not in ["mse", "mae", "poisson"]:
             raise NotImplementedError("Only support gini impurity or entropy")
         self.split_rule = split_rule
     
